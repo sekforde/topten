@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
 
@@ -15,12 +15,13 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
     title: 'Family Top 10 - Collaborative Ranking Lists',
     description:
-        'Build and rank collaborative lists with your family or friends. No accounts, no fuss—just share a link and start voting!',
-    viewport: {
-        width: 'device-width',
-        initialScale: 1,
-        maximumScale: 5
-    }
+        'Build and rank collaborative lists with your family or friends. No accounts, no fuss—just share a link and start voting!'
+}
+
+export const viewport: Viewport = {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 5
 }
 
 export default function RootLayout({

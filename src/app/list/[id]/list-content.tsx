@@ -40,6 +40,7 @@ export default function ListContent({
     const [newCriterionName, setNewCriterionName] = useState('')
     const [criteriaError, setCriteriaError] = useState('')
     const [showMenu, setShowMenu] = useState(false)
+    const [isItemsExpanded, setIsItemsExpanded] = useState(false)
 
     // Sync local state with server data when it updates
     useEffect(() => {
@@ -172,10 +173,10 @@ export default function ListContent({
         <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white pb-12">
             <div className="max-w-4xl mx-auto px-4 py-6 sm:py-8">
                 {/* Header */}
-                <div className="bg-white rounded-lg p-6 mb-6">
+                <div className="bg-white rounded-lg p-4 mb-6">
                     <div className="flex justify-between items-start gap-4">
                         <div className="flex-1">
-                            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">{list.name}</h1>
+                            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900">{list.name}</h1>
                         </div>
 
                         {/* Menu Dropdown */}
@@ -361,6 +362,19 @@ export default function ListContent({
                     </div>
                 )}
 
+                {/* Expand All Button */}
+                {sortedItems.length > 0 && (
+                    <div className="mb-6">
+                        <button
+                            onClick={() => setIsItemsExpanded(!isItemsExpanded)}
+                            className="w-full bg-gray-100 text-gray-700 px-6 py-3 rounded-lg font-medium hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
+                        >
+                            <span>{isItemsExpanded ? '▼' : '▶'}</span>
+                            <span>{isItemsExpanded ? 'Collapse All' : 'Expand All'}</span>
+                        </button>
+                    </div>
+                )}
+
                 {/* Items List */}
                 <div>
                     {sortedItems.length === 0 ? (
@@ -381,6 +395,7 @@ export default function ListContent({
                                     criteria={list.criteria}
                                     userId={userIdentity?.userId}
                                     isOwner={isOwner}
+                                    isExpanded={isItemsExpanded}
                                     onRate={userIdentity ? handleRate : undefined}
                                     onRemove={isOwner ? handleRemoveItem : undefined}
                                 />

@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { StarRating } from './star-rating'
 import { calculateItemScore } from '@/lib/utils'
 import type { Item, Criterion } from '@/types'
@@ -10,20 +11,52 @@ interface ItemCardProps {
     criteria: Criterion[]
     userId?: string
     isOwner?: boolean
+    isExpanded?: boolean
     onRate?: (itemId: string, criterionId: string, value: number) => void
     onRemove?: (itemId: string) => void
 }
 
-export function ItemCard({ index, item, criteria, userId, isOwner, onRate, onRemove }: ItemCardProps) {
+export function ItemCard({ index, item, criteria, userId, isOwner, isExpanded = false, onRate, onRemove }: ItemCardProps) {
     const scoreData = calculateItemScore(item)
+    const [showMenu, setShowMenu] = useState(false)
 
     return (
         <div className="bg-white rounded-lg p-4 sm:p-6 space-y-4">
             <div className="flex justify-between items-start gap-4">
-                <div className="flex-1">
+                <div className="flex-1 flex items-center gap-2">
                     <h3 className="text-3xl font-bold text-gray-900">
                         {index + 1}. {item.name}
                     </h3>
+                    
+                    {isOwner && onRemove && (
+                        <div className="relative">
+                            <button
+                                onClick={() => setShowMenu(!showMenu)}
+                                className="p-1 hover:bg-gray-100 rounded transition-colors"
+                                title="Item menu"
+                            >
+                                <span className="text-xl text-gray-600">⋯</span>
+                            </button>
+
+                            {showMenu && (
+                                <>
+                                    <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
+                                    <div className="absolute left-0 mt-2 w-48 bg-white rounded-lg border border-gray-200 py-1 z-20 shadow-lg">
+                                        <button
+                                            onClick={() => {
+                                                onRemove(item.id)
+                                                setShowMenu(false)
+                                            }}
+                                            className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-3"
+                                        >
+                                            <span>🗑️</span>
+                                            <span>Remove Item</span>
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 <div className="text-right flex-shrink-0">
@@ -31,7 +64,8 @@ export function ItemCard({ index, item, criteria, userId, isOwner, onRate, onRem
                 </div>
             </div>
 
-            <div className="space-y-3">
+            {isExpanded && (
+                <div className="space-y-3">
                 {criteria.map((criterion) => {
                     const userRating = userId
                         ? item.ratings.find((r) => r.userId === userId && r.criterionId === criterion.id)
@@ -59,14 +93,7 @@ export function ItemCard({ index, item, criteria, userId, isOwner, onRate, onRem
                         </div>
                     )
                 })}
-            </div>
-            {isOwner && onRemove && (
-                <button
-                    onClick={() => onRemove(item.id)}
-                    className="w-full mt-4 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm font-medium"
-                >
-                    Remove Item
-                </button>
+                </div>
             )}
         </div>
     )
