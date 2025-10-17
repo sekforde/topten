@@ -236,7 +236,7 @@ export default function ListContent({
                     </div>
 
                     {/* Criteria */}
-                    <div className="mb-4 hidden">
+                    <div className="mb-4">
                         <h3 className="text-sm font-semibold text-gray-700 mb-2">Rating Criteria:</h3>
                         <div className="flex flex-wrap gap-2">
                             {list.criteria.map((criterion) => (
