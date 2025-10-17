@@ -16,7 +16,16 @@ interface ItemCardProps {
     onRemove?: (itemId: string) => void
 }
 
-export function ItemCard({ index, item, criteria, userId, isOwner, isExpanded = false, onRate, onRemove }: ItemCardProps) {
+export function ItemCard({
+    index,
+    item,
+    criteria,
+    userId,
+    isOwner,
+    isExpanded = false,
+    onRate,
+    onRemove
+}: ItemCardProps) {
     const scoreData = calculateItemScore(item)
     const [showMenu, setShowMenu] = useState(false)
 
@@ -24,10 +33,10 @@ export function ItemCard({ index, item, criteria, userId, isOwner, isExpanded = 
         <div className="bg-white rounded-lg p-4 sm:p-6 space-y-4">
             <div className="flex justify-between items-start gap-4">
                 <div className="flex-1 flex items-center gap-2">
-                    <h3 className="text-3xl font-bold text-gray-900">
+                    <h3 className="text-xl sm:text-3xl font-bold text-gray-900">
                         {index + 1}. {item.name}
                     </h3>
-                    
+
                     {isOwner && onRemove && (
                         <div className="relative">
                             <button
@@ -60,39 +69,43 @@ export function ItemCard({ index, item, criteria, userId, isOwner, isExpanded = 
                 </div>
 
                 <div className="text-right flex-shrink-0">
-                    <div className="text-3xl font-bold">{scoreData.averageScore.toFixed(1)}</div>
+                    <div className="text-xl sm:text-3xl font-bold">{scoreData.averageScore.toFixed(1)}</div>
                 </div>
             </div>
 
             {isExpanded && (
                 <div className="space-y-3">
-                {criteria.map((criterion) => {
-                    const userRating = userId
-                        ? item.ratings.find((r) => r.userId === userId && r.criterionId === criterion.id)
-                        : undefined
+                    {criteria.map((criterion) => {
+                        const userRating = userId
+                            ? item.ratings.find((r) => r.userId === userId && r.criterionId === criterion.id)
+                            : undefined
 
-                    const criterionScore = scoreData.criteriaScores.get(criterion.id)
+                        const criterionScore = scoreData.criteriaScores.get(criterion.id)
 
-                    return (
-                        <div key={criterion.id} className="">
-                            <div className="flex flex-row justify-between items-center">
-                                <div className="flex-1 sm:pl-12 text-xl font-medium text-gray-700 border-0 border-blue-500">
-                                    {criterion.name}
-                                </div>
-                                <StarRating
-                                    value={userRating?.value ?? -1}
-                                    onChange={onRate ? (value) => onRate(item.id, criterion.id, value) : undefined}
-                                    readonly={!onRate || !userId}
-                                    showNoExperience={!!userId}
-                                />
-                                <div className="text-md text-gray-500 w-18 text-right">
-                                    {criterionScore && <span>{criterionScore.average.toFixed(1)}</span>}
-                                    {criterionScore && <span> ({criterionScore.count})</span>}
+                        return (
+                            <div key={criterion.id} className="">
+                                <div className="flex flex-row justify-between items-center">
+                                    <div className="flex-1 sm:pl-12 text-md sm:text-xl font-medium text-gray-700 border-0 border-blue-500">
+                                        {criterion.name}
+                                    </div>
+                                    <div className="flex-1">
+                                        <StarRating
+                                            value={userRating?.value ?? -1}
+                                            onChange={
+                                                onRate ? (value) => onRate(item.id, criterion.id, value) : undefined
+                                            }
+                                            readonly={!onRate || !userId}
+                                            showNoExperience={!!userId}
+                                        />
+                                    </div>
+                                    {/* <div className="text-sm sm:text-md text-gray-500 w-18 text-right">
+                                        {criterionScore && <span>{criterionScore.average.toFixed(1)}</span>}
+                                        {criterionScore && <span> ({criterionScore.count})</span>}
+                                    </div> */}
                                 </div>
                             </div>
-                        </div>
-                    )
-                })}
+                        )
+                    })}
                 </div>
             )}
         </div>
