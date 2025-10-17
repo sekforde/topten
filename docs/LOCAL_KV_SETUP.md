@@ -56,9 +56,28 @@ This file:
 - ✅ Is gitignored (won't be committed)
 - ✅ Is human-readable JSON
 
-## 🔄 Switching to Vercel KV
+## 🔄 Switching to Remote Storage
 
-When you're ready to use Vercel KV:
+### Option 1: Redis (Recommended for Vercel)
+
+When you're ready to use Vercel Redis:
+
+1. **Update `.env.local`:**
+```bash
+USE_LOCAL_KV=false
+REDIS_URL=redis://default:your_password@your-redis.vercel-storage.com:6379
+```
+
+2. **Restart the server**
+
+You should see:
+```
+[DB] Using Redis store
+```
+
+### Option 2: Vercel KV (Legacy)
+
+If you still have Vercel KV:
 
 1. **Update `.env.local`:**
 ```bash

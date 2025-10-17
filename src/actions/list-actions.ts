@@ -46,7 +46,7 @@ async function verifyOwner(listId: string, ownerToken: string): Promise<boolean>
   return storedToken === ownerToken;
 }
 
-export async function createList(name: string, description: string, criteria: string[]): Promise<{ success: boolean; listId?: string; error?: string }> {
+export async function createList(name: string, criteria: string[]): Promise<{ success: boolean; listId?: string; error?: string }> {
   try {
     const listId = nanoid(12);
     const ownerId = nanoid(12);
@@ -60,7 +60,6 @@ export async function createList(name: string, description: string, criteria: st
     const newList: TopTenList = {
       id: listId,
       name,
-      description,
       criteria: criteriaObjects,
       items: [],
       users: [],
@@ -122,7 +121,7 @@ export async function joinList(listId: string, displayName: string): Promise<{ s
   }
 }
 
-export async function addItem(listId: string, itemName: string, description?: string): Promise<{ success: boolean; itemId?: string; error?: string }> {
+export async function addItem(listId: string, itemName: string): Promise<{ success: boolean; itemId?: string; error?: string }> {
   try {
     const list = await getList(listId);
     if (!list) {
@@ -137,7 +136,6 @@ export async function addItem(listId: string, itemName: string, description?: st
     const newItem: Item = {
       id: nanoid(12),
       name: itemName,
-      description,
       addedBy: userIdentity.userId,
       addedAt: Date.now(),
       ratings: [],
@@ -261,5 +259,64 @@ export async function getUserListIds(): Promise<string[]> {
   }
   
   return listIds;
+}
+
+export async function addCriterion(listId: string, criterionName: string, ownerToken: string): Promise<{ success: boolean; criterionId?: string; error?: string }> {
+  try {
+    if (!await verifyOwner(listId, ownerToken)) {
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    const list = await getList(listId);
+    if (!list) {
+      return { success: false, error: 'List not found' };
+    }
+
+    // Check if criterion with same name already exists
+    if (list.criteria.some(c => c.name.toLowerCase() === criterionName.toLowerCase())) {
+      return { success: false, error: 'A criterion with this name already exists' };
+    }
+
+    const newCriterion: Criterion = {
+      id: nanoid(8),
+      name: criterionName,
+    };
+
+    list.criteria.push(newCriterion);
+    await saveList(list);
+
+    return { success: true, criterionId: newCriterion.id };
+  } catch (error) {
+    console.error('Error adding criterion:', error);
+    return { success: false, error: 'Failed to add criterion' };
+  }
+}
+
+export async function removeCriterion(listId: string, criterionId: string, ownerToken: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (!await verifyOwner(listId, ownerToken)) {
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    const list = await getList(listId);
+    if (!list) {
+      return { success: false, error: 'List not found' };
+    }
+
+    // Remove the criterion
+    list.criteria = list.criteria.filter(c => c.id !== criterionId);
+
+    // Clean up all ratings for this criterion from all items
+    for (const item of list.items) {
+      item.ratings = item.ratings.filter(r => r.criterionId !== criterionId);
+    }
+
+    await saveList(list);
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error removing criterion:', error);
+    return { success: false, error: 'Failed to remove criterion' };
+  }
 }
 

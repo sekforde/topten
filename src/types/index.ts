@@ -14,7 +14,6 @@ export interface Rating {
 export interface Item {
   id: string;
   name: string;
-  description?: string;
   addedBy: string;
   addedAt: number;
   ratings: Rating[];
@@ -29,7 +28,6 @@ export interface User {
 export interface TopTenList {
   id: string;
   name: string;
-  description?: string;
   criteria: Criterion[];
   items: Item[];
   users: User[];
