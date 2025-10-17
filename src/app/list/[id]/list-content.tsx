@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { ItemCard } from '@/components/item-card'
+import { ListNavigator } from '@/components/list-navigator'
 import { calculateItemScore, sortItemsByScore } from '@/lib/utils'
 import {
     joinList,
@@ -15,16 +16,26 @@ import {
 } from '@/actions/list-actions'
 import type { TopTenList } from '@/types'
 
+interface ListSummary {
+    id: string
+    name: string
+    itemCount: number
+    memberCount: number
+    isOwner: boolean
+}
+
 interface ListContentProps {
     list: TopTenList
     userIdentity: { userId: string; displayName: string } | null
     isOwner: boolean
+    userLists: ListSummary[]
 }
 
 export default function ListContent({
     list: initialList,
     userIdentity: initialUserIdentity,
-    isOwner
+    isOwner,
+    userLists
 }: ListContentProps) {
     const router = useRouter()
     const [list, setList] = useState(initialList)
@@ -40,7 +51,7 @@ export default function ListContent({
     const [newCriterionName, setNewCriterionName] = useState('')
     const [criteriaError, setCriteriaError] = useState('')
     const [showMenu, setShowMenu] = useState(false)
-    const [isItemsExpanded, setIsItemsExpanded] = useState(false)
+    const [isItemsExpanded, setIsItemsExpanded] = useState(true)
 
     // Sync local state with server data when it updates
     useEffect(() => {
@@ -172,11 +183,12 @@ export default function ListContent({
     return (
         <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white pb-12">
             <div className="max-w-4xl mx-auto px-4 py-6 sm:py-8">
-                {/* Back Link */}
-                <div className="mb-2 text-center">
+                {/* Navigation Bar */}
+                <div className="mb-4 flex items-center justify-between gap-4">
                     <button onClick={() => router.push('/')} className="text-gray-600 hover:text-gray-900 text-sm">
                         ← Back to home
                     </button>
+                    <ListNavigator currentListId={list.id} lists={userLists} />
                 </div>
                 {/* Header */}
                 <div className="bg-white rounded-lg p-4 mb-6">
@@ -236,7 +248,7 @@ export default function ListContent({
                     </div>
 
                     {/* Criteria */}
-                    <div className="mb-4 hidden">
+                    <div className="mb-4">
                         <h3 className="text-sm font-semibold text-gray-700 mb-2">Rating Criteria:</h3>
                         <div className="flex flex-wrap gap-2">
                             {list.criteria.map((criterion) => (

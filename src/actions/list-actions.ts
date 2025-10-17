@@ -261,6 +261,34 @@ export async function getUserListIds(): Promise<string[]> {
   return listIds;
 }
 
+export async function getUserListsSummary(): Promise<Array<{
+  id: string;
+  name: string;
+  itemCount: number;
+  memberCount: number;
+  isOwner: boolean;
+}>> {
+  const listIds = await getUserListIds();
+  
+  const summaries = await Promise.all(
+    listIds.map(async (listId) => {
+      const { list, isOwner } = await getListWithUserContext(listId);
+      
+      if (!list) return null;
+      
+      return {
+        id: list.id,
+        name: list.name,
+        itemCount: list.items.length,
+        memberCount: list.users.length,
+        isOwner,
+      };
+    })
+  );
+  
+  return summaries.filter((summary): summary is NonNullable<typeof summary> => summary !== null);
+}
+
 export async function addCriterion(listId: string, criterionName: string, ownerToken: string): Promise<{ success: boolean; criterionId?: string; error?: string }> {
   try {
     if (!await verifyOwner(listId, ownerToken)) {

@@ -76,7 +76,7 @@ export function ItemCard({ index, item, criteria, userId, isOwner, isExpanded = 
                     return (
                         <div key={criterion.id} className="">
                             <div className="flex flex-row justify-between items-center">
-                                <div className="flex-1 pl-12 text-xl font-medium text-gray-700 border-0 border-blue-500">
+                                <div className="flex-1 sm:pl-12 text-xl font-medium text-gray-700 border-0 border-blue-500">
                                     {criterion.name}
                                 </div>
                                 <StarRating
