@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { getListWithUserContext } from '@/actions/list-actions'
+import { getListWithUserContext, getUserListsSummary } from '@/actions/list-actions'
 import ListContent from './list-content'
 
 interface PageProps {
@@ -14,5 +14,7 @@ export default async function ListPage({ params }: PageProps) {
         notFound()
     }
 
-    return <ListContent list={list} userIdentity={userIdentity} isOwner={isOwner} />
+    const userLists = await getUserListsSummary()
+
+    return <ListContent list={list} userIdentity={userIdentity} isOwner={isOwner} userLists={userLists} />
 }
