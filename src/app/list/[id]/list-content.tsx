@@ -172,6 +172,12 @@ export default function ListContent({
     return (
         <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white pb-12">
             <div className="max-w-4xl mx-auto px-4 py-6 sm:py-8">
+                {/* Back Link */}
+                <div className="mb-2 text-center">
+                    <button onClick={() => router.push('/')} className="text-gray-600 hover:text-gray-900 text-sm">
+                        ← Back to home
+                    </button>
+                </div>
                 {/* Header */}
                 <div className="bg-white rounded-lg p-4 mb-6">
                     <div className="flex justify-between items-start gap-4">
@@ -405,7 +411,7 @@ export default function ListContent({
                 </div>
 
                 {/* Back Link */}
-                <div className="mt-8 text-center">
+                <div className="mt-8 text-center hidden">
                     <button onClick={() => router.push('/')} className="text-gray-600 hover:text-gray-900 text-sm">
                         ← Back to home
                     </button>

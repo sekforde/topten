@@ -70,7 +70,7 @@ export default async function Home() {
                 )}
 
                 {/* How it works */}
-                <div className="mt-16 bg-white rounded-xl shadow-md p-6 sm:p-8">
+                <div className="mt-16 bg-white rounded-xl shadow-md p-6 sm:p-8 hidden">
                     <h2 className="text-2xl font-bold text-gray-900 mb-6">How it works</h2>
                     <div className="space-y-4">
                         <div className="flex gap-4">
