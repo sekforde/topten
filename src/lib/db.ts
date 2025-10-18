@@ -58,16 +58,29 @@ async function getKVStore(): Promise<KVStore> {
 
 const LIST_PREFIX = 'list:';
 const USER_LISTS_PREFIX = 'user_lists:';
+const ALL_LISTS_KEY = 'all_lists';
 
 export async function saveList(list: TopTenList): Promise<void> {
   const kv = await getKVStore();
   await kv.set(`${LIST_PREFIX}${list.id}`, list);
+  
+  // Track list ID in global list
+  const allLists = await getAllListIds();
+  if (!allLists.includes(list.id)) {
+    await kv.set(ALL_LISTS_KEY, [...allLists, list.id]);
+  }
 }
 
 export async function getList(listId: string): Promise<TopTenList | null> {
   const kv = await getKVStore();
   const list = await kv.get<TopTenList>(`${LIST_PREFIX}${listId}`);
   return list;
+}
+
+export async function getAllListIds(): Promise<string[]> {
+  const kv = await getKVStore();
+  const listIds = await kv.get<string[]>(ALL_LISTS_KEY);
+  return listIds || [];
 }
 
 export async function getUserLists(userIdentifier: string): Promise<string[]> {
@@ -87,5 +100,10 @@ export async function addUserToList(userIdentifier: string, listId: string): Pro
 export async function deleteList(listId: string): Promise<void> {
   const kv = await getKVStore();
   await kv.del(`${LIST_PREFIX}${listId}`);
+  
+  // Remove from global list
+  const allLists = await getAllListIds();
+  const filtered = allLists.filter(id => id !== listId);
+  await kv.set(ALL_LISTS_KEY, filtered);
 }
 

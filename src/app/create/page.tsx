@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { SignInButton, SignedIn, SignedOut, UserButton } from '@clerk/nextjs'
 import { createList } from '@/actions/list-actions'
 
 export default function CreateListPage() {
@@ -63,6 +64,25 @@ export default function CreateListPage() {
     return (
         <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
             <div className="max-w-2xl mx-auto px-4 py-8 sm:py-12">
+                {/* Header with Auth */}
+                <div className="flex justify-between items-center mb-8">
+                    <button onClick={() => router.push('/')} className="text-gray-600 hover:text-gray-900 text-sm">
+                        ← Back to home
+                    </button>
+                    <div className="flex items-center gap-3">
+                        <SignedOut>
+                            <SignInButton mode="modal">
+                                <button className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors">
+                                    Sign In
+                                </button>
+                            </SignInButton>
+                        </SignedOut>
+                        <SignedIn>
+                            <UserButton afterSignOutUrl="/" />
+                        </SignedIn>
+                    </div>
+                </div>
+
                 <div className="mb-8">
                     <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">Create a New List</h1>
                     <p className="text-gray-600">Define your list and the criteria you&apos;ll use to rate items.</p>

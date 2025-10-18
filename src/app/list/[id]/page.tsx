@@ -4,12 +4,10 @@ import ListContent from './list-content'
 
 interface PageProps {
     params: Promise<{ id: string }>
-    searchParams: Promise<{ user?: string }>
 }
 
-export default async function ListPage({ params, searchParams }: PageProps) {
+export default async function ListPage({ params }: PageProps) {
     const { id } = await params
-    const { user: userToken } = await searchParams
 
     const { list, userIdentity, isOwner } = await getListWithUserContext(id)
 
@@ -19,5 +17,5 @@ export default async function ListPage({ params, searchParams }: PageProps) {
 
     const userLists = await getUserListsSummary()
 
-    return <ListContent list={list} userIdentity={userIdentity} isOwner={isOwner} userLists={userLists} userToken={userToken} />
+    return <ListContent list={list} userIdentity={userIdentity} isOwner={isOwner} userLists={userLists} />
 }
