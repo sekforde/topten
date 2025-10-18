@@ -12,7 +12,8 @@ import {
     removeItem,
     toggleLockList,
     addCriterion,
-    removeCriterion
+    removeCriterion,
+    authenticateUserByToken
 } from '@/actions/list-actions'
 import type { TopTenList } from '@/types'
 
@@ -29,13 +30,15 @@ interface ListContentProps {
     userIdentity: { userId: string; displayName: string } | null
     isOwner: boolean
     userLists: ListSummary[]
+    userToken?: string
 }
 
 export default function ListContent({
     list: initialList,
     userIdentity: initialUserIdentity,
     isOwner,
-    userLists
+    userLists,
+    userToken
 }: ListContentProps) {
     const router = useRouter()
     const [list, setList] = useState(initialList)
@@ -52,6 +55,9 @@ export default function ListContent({
     const [criteriaError, setCriteriaError] = useState('')
     const [showMenu, setShowMenu] = useState(false)
     const [isItemsExpanded, setIsItemsExpanded] = useState(true)
+    const [personalLink, setPersonalLink] = useState('')
+    const [showPersonalLinkBanner, setShowPersonalLinkBanner] = useState(false)
+    const [showShareModal, setShowShareModal] = useState(false)
 
     // Sync local state with server data when it updates
     useEffect(() => {
@@ -63,12 +69,37 @@ export default function ListContent({
         setUserIdentity(initialUserIdentity)
     }, [initialUserIdentity])
 
+    // Authenticate user by token if provided in URL
+    useEffect(() => {
+        async function authenticateByToken() {
+            if (userToken && !userIdentity) {
+                const result = await authenticateUserByToken(list.id, userToken)
+                if (result.success && result.userId && result.displayName) {
+                    setUserIdentity({ userId: result.userId, displayName: result.displayName })
+                    router.refresh()
+                }
+            }
+        }
+        authenticateByToken()
+    }, [userToken, userIdentity, list.id, router])
+
     // Set share URL on client
     useEffect(() => {
         if (typeof window !== 'undefined') {
-            setShareUrl(window.location.href)
+            setShareUrl(window.location.href.split('?')[0]) // Remove query params for share URL
         }
     }, [])
+
+    // Set personal link if user is logged in
+    useEffect(() => {
+        if (typeof window !== 'undefined' && userIdentity) {
+            const user = list.users.find((u) => u.id === userIdentity.userId)
+            if (user?.userToken) {
+                const baseUrl = window.location.href.split('?')[0]
+                setPersonalLink(`${baseUrl}?user=${user.userToken}`)
+            }
+        }
+    }, [userIdentity, list.users])
 
     async function handleJoin(e: React.FormEvent) {
         e.preventDefault()
@@ -77,9 +108,18 @@ export default function ListContent({
         setIsSubmitting(true)
         const result = await joinList(list.id, displayName.trim())
 
-        if (result.success && result.userId) {
+        if (result.success && result.userId && result.userToken) {
             setUserIdentity({ userId: result.userId, displayName: displayName.trim() })
             setShowJoinForm(false)
+            
+            // Build and show personal link
+            if (typeof window !== 'undefined') {
+                const baseUrl = window.location.href.split('?')[0]
+                const link = `${baseUrl}?user=${result.userToken}`
+                setPersonalLink(link)
+                setShowPersonalLinkBanner(true)
+            }
+            
             router.refresh()
         }
         setIsSubmitting(false)
@@ -123,12 +163,18 @@ export default function ListContent({
         router.refresh()
     }
 
-    async function handleCopyLink() {
-        if (shareUrl) {
-            await navigator.clipboard.writeText(shareUrl)
+    function handleOpenShareModal() {
+        setShowShareModal(true)
+        setShowMenu(false)
+    }
+
+    async function handleCopyLink(url: string) {
+        try {
+            await navigator.clipboard.writeText(url)
             setShowCopyNotification(true)
             setTimeout(() => setShowCopyNotification(false), 2000)
-            setShowMenu(false)
+        } catch (err) {
+            console.error('Failed to copy:', err)
         }
     }
 
@@ -183,6 +229,69 @@ export default function ListContent({
     return (
         <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white pb-12">
             <div className="max-w-4xl mx-auto px-4 py-6 sm:py-8">
+                {/* Share Modal */}
+                {showShareModal && shareUrl && (
+                    <>
+                        <div className="fixed inset-0 bg-black bg-opacity-50 z-40" onClick={() => setShowShareModal(false)} />
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                            <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
+                                <div className="flex items-start justify-between mb-4">
+                                    <div>
+                                        <h2 className="text-2xl font-bold text-gray-900">Share List</h2>
+                                        <p className="text-sm text-gray-600 mt-1">
+                                            Choose how you want to share this list
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => setShowShareModal(false)}
+                                        className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+
+                                <div className="space-y-3">
+                                    <button
+                                        onClick={() => handleCopyLink(shareUrl)}
+                                        className="w-full bg-blue-600 text-white px-6 py-4 rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-start gap-3"
+                                    >
+                                        <span className="text-2xl">🔗</span>
+                                        <div className="flex-1 text-left">
+                                            <div className="font-bold">Share with Others</div>
+                                            <div className="text-sm opacity-90">
+                                                Invite link - others will join as themselves
+                                            </div>
+                                        </div>
+                                    </button>
+
+                                    {userIdentity && (
+                                        <button
+                                            onClick={() => handleCopyLink(personalLink || shareUrl)}
+                                            className="w-full bg-green-600 text-white px-6 py-4 rounded-lg font-semibold hover:bg-green-700 transition-colors flex items-start gap-3"
+                                        >
+                                            <span className="text-2xl">👤</span>
+                                            <div className="flex-1 text-left">
+                                                <div className="font-bold">Share with Me</div>
+                                                <div className="text-sm opacity-90">
+                                                    {personalLink
+                                                        ? 'Personal link - use on your other devices'
+                                                        : 'Get your personal link (refresh page after joining)'}
+                                                </div>
+                                            </div>
+                                        </button>
+                                    )}
+                                </div>
+
+                                {showCopyNotification && (
+                                    <div className="mt-4 text-center text-sm text-green-600 font-medium">
+                                        ✓ Link copied to clipboard!
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </>
+                )}
+
                 {/* Navigation Bar */}
                 <div className="mb-4 flex items-center justify-between gap-4">
                     <button onClick={() => router.push('/')} className="text-gray-600 hover:text-gray-900 text-sm">
@@ -210,18 +319,23 @@ export default function ListContent({
                             {showMenu && (
                                 <>
                                     <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
-                                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg border border-gray-200 py-1 z-20">
+                                    <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg border border-gray-200 py-1 z-20">
                                         <button
-                                            onClick={handleCopyLink}
-                                            className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3"
+                                            onClick={handleOpenShareModal}
+                                            className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center gap-3"
                                         >
-                                            <span>🔗</span>
-                                            <span>{showCopyNotification ? '✓ Link Copied!' : 'Copy Share Link'}</span>
+                                            <span className="text-lg">🔗</span>
+                                            <span className="font-medium text-gray-900">Share List</span>
                                         </button>
 
                                         {isOwner && (
                                             <>
                                                 <div className="border-t border-gray-100 my-1" />
+                                                <div className="px-4 py-2">
+                                                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                                                        Owner Actions
+                                                    </div>
+                                                </div>
                                                 <button
                                                     onClick={handleEditCriteriaToggle}
                                                     className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3"
@@ -293,6 +407,35 @@ export default function ListContent({
                         {criteriaError && <p className="mt-2 text-sm text-red-600">{criteriaError}</p>}
                     </div>
                 </div>
+
+                {/* Personal Link Banner */}
+                {showPersonalLinkBanner && personalLink && (
+                    <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4 mb-6">
+                        <div className="flex items-start gap-3">
+                            <span className="text-2xl flex-shrink-0">🎉</span>
+                            <div className="flex-1">
+                                <h3 className="font-bold text-green-900 mb-1">Welcome! Save your personal link</h3>
+                                <p className="text-sm text-green-800 mb-3">
+                                    Use your personal link to access this list from any device as yourself. Click below to
+                                    get your link!
+                                </p>
+                                <button
+                                    onClick={handleOpenShareModal}
+                                    className="w-full bg-green-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <span>🔗</span>
+                                    <span>Get My Link</span>
+                                </button>
+                            </div>
+                            <button
+                                onClick={() => setShowPersonalLinkBanner(false)}
+                                className="text-green-600 hover:text-green-800 text-xl font-bold flex-shrink-0"
+                            >
+                                ×
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 {/* Join Form */}
                 {showJoinForm && (
