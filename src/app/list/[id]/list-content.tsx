@@ -58,6 +58,7 @@ export default function ListContent({
     const [personalLink, setPersonalLink] = useState('')
     const [showPersonalLinkBanner, setShowPersonalLinkBanner] = useState(false)
     const [showShareModal, setShowShareModal] = useState(false)
+    const [hasAuthenticatedToken, setHasAuthenticatedToken] = useState(false)
 
     // Sync local state with server data when it updates
     useEffect(() => {
@@ -70,18 +71,24 @@ export default function ListContent({
     }, [initialUserIdentity])
 
     // Authenticate user by token if provided in URL
+    // Token in URL should ALWAYS override any existing cookie
     useEffect(() => {
         async function authenticateByToken() {
-            if (userToken && !userIdentity) {
+            if (userToken && !hasAuthenticatedToken) {
+                setHasAuthenticatedToken(true)
                 const result = await authenticateUserByToken(list.id, userToken)
                 if (result.success && result.userId && result.displayName) {
                     setUserIdentity({ userId: result.userId, displayName: result.displayName })
+                    setShowJoinForm(false)
+                    // Remove the token from URL to avoid re-authentication
+                    const cleanUrl = window.location.href.split('?')[0]
+                    window.history.replaceState({}, '', cleanUrl)
                     router.refresh()
                 }
             }
         }
         authenticateByToken()
-    }, [userToken, userIdentity, list.id, router])
+    }, [userToken, hasAuthenticatedToken, list.id, router])
 
     // Set share URL on client
     useEffect(() => {
