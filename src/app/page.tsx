@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton } from '@clerk/nextjs'
 import { getUserListIds, getListWithUserContext } from '@/actions/list-actions'
 
 export default async function Home() {
@@ -17,12 +18,31 @@ export default async function Home() {
     return (
         <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
             <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
+                {/* Header with Auth */}
+                <div className="flex justify-end gap-3 mb-6">
+                    <SignedOut>
+                        <SignInButton mode="modal">
+                            <button className="bg-white text-gray-700 px-6 py-2 rounded-lg font-semibold hover:bg-gray-100 transition-colors border border-gray-300">
+                                Sign In
+                            </button>
+                        </SignInButton>
+                        <SignUpButton mode="modal">
+                            <button className="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors">
+                                Sign Up
+                            </button>
+                        </SignUpButton>
+                    </SignedOut>
+                    <SignedIn>
+                        <UserButton afterSignOutUrl="/" />
+                    </SignedIn>
+                </div>
+
                 {/* Header */}
                 <div className="text-center mb-12">
                     <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-4">Family Top 10</h1>
                     <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-                        Build and rank collaborative lists with your family or friends. No accounts, no fuss—just share
-                        a link and start voting!
+                        Build and rank collaborative lists with your family or friends. Sign in to collaborate and track
+                        your votes!
                     </p>
                 </div>
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { SignInButton, SignedIn, SignedOut, UserButton, useUser } from '@clerk/nextjs'
 import { ItemCard } from '@/components/item-card'
 import { ListNavigator } from '@/components/list-navigator'
 import { calculateItemScore, sortItemsByScore } from '@/lib/utils'
@@ -12,8 +13,7 @@ import {
     removeItem,
     toggleLockList,
     addCriterion,
-    removeCriterion,
-    authenticateUserByToken
+    removeCriterion
 } from '@/actions/list-actions'
 import type { TopTenList } from '@/types'
 
@@ -30,21 +30,18 @@ interface ListContentProps {
     userIdentity: { userId: string; displayName: string } | null
     isOwner: boolean
     userLists: ListSummary[]
-    userToken?: string
 }
 
 export default function ListContent({
     list: initialList,
     userIdentity: initialUserIdentity,
     isOwner,
-    userLists,
-    userToken
+    userLists
 }: ListContentProps) {
     const router = useRouter()
+    const { user: clerkUser } = useUser()
     const [list, setList] = useState(initialList)
     const [userIdentity, setUserIdentity] = useState(initialUserIdentity)
-    const [displayName, setDisplayName] = useState('')
-    const [showJoinForm, setShowJoinForm] = useState(!initialUserIdentity)
     const [showAddItemForm, setShowAddItemForm] = useState(false)
     const [newItemName, setNewItemName] = useState('')
     const [isSubmitting, setIsSubmitting] = useState(false)
@@ -55,10 +52,8 @@ export default function ListContent({
     const [criteriaError, setCriteriaError] = useState('')
     const [showMenu, setShowMenu] = useState(false)
     const [isItemsExpanded, setIsItemsExpanded] = useState(true)
-    const [personalLink, setPersonalLink] = useState('')
-    const [showPersonalLinkBanner, setShowPersonalLinkBanner] = useState(false)
     const [showShareModal, setShowShareModal] = useState(false)
-    const [hasAuthenticatedToken, setHasAuthenticatedToken] = useState(false)
+    const [isJoining, setIsJoining] = useState(false)
 
     // Sync local state with server data when it updates
     useEffect(() => {
@@ -70,25 +65,7 @@ export default function ListContent({
         setUserIdentity(initialUserIdentity)
     }, [initialUserIdentity])
 
-    // Authenticate user by token if provided in URL
-    // Token in URL should ALWAYS override any existing cookie
-    useEffect(() => {
-        async function authenticateByToken() {
-            if (userToken && !hasAuthenticatedToken) {
-                setHasAuthenticatedToken(true)
-                const result = await authenticateUserByToken(list.id, userToken)
-                if (result.success && result.userId && result.displayName) {
-                    setUserIdentity({ userId: result.userId, displayName: result.displayName })
-                    setShowJoinForm(false)
-                    // Remove the token from URL to avoid re-authentication
-                    const cleanUrl = window.location.href.split('?')[0]
-                    window.history.replaceState({}, '', cleanUrl)
-                    router.refresh()
-                }
-            }
-        }
-        authenticateByToken()
-    }, [userToken, hasAuthenticatedToken, list.id, router])
+    // No longer needed - Clerk handles authentication automatically
 
     // Set share URL on client
     useEffect(() => {
@@ -97,40 +74,25 @@ export default function ListContent({
         }
     }, [])
 
-    // Set personal link if user is logged in
+    // Personal links not needed - Clerk handles cross-device authentication
+
+    // Check if user is a member of this list
+    const isMember = clerkUser && list.users.some(u => u.id === clerkUser.id)
+
+    // Auto-join logged-in users who aren't members yet
     useEffect(() => {
-        if (typeof window !== 'undefined' && userIdentity) {
-            const user = list.users.find((u) => u.id === userIdentity.userId)
-            if (user?.userToken) {
-                const baseUrl = window.location.href.split('?')[0]
-                setPersonalLink(`${baseUrl}?user=${user.userToken}`)
+        async function autoJoinUser() {
+            if (clerkUser && !isMember && !isJoining) {
+                setIsJoining(true)
+                const result = await joinList(list.id)
+                if (result.success) {
+                    router.refresh()
+                }
+                setIsJoining(false)
             }
         }
-    }, [userIdentity, list.users])
-
-    async function handleJoin(e: React.FormEvent) {
-        e.preventDefault()
-        if (!displayName.trim()) return
-
-        setIsSubmitting(true)
-        const result = await joinList(list.id, displayName.trim())
-
-        if (result.success && result.userId && result.userToken) {
-            setUserIdentity({ userId: result.userId, displayName: displayName.trim() })
-            setShowJoinForm(false)
-            
-            // Build and show personal link
-            if (typeof window !== 'undefined') {
-                const baseUrl = window.location.href.split('?')[0]
-                const link = `${baseUrl}?user=${result.userToken}`
-                setPersonalLink(link)
-                setShowPersonalLinkBanner(true)
-            }
-            
-            router.refresh()
-        }
-        setIsSubmitting(false)
-    }
+        autoJoinUser()
+    }, [clerkUser, isMember, list.id, router, isJoining])
 
     async function handleAddItem(e: React.FormEvent) {
         e.preventDefault()
@@ -246,7 +208,7 @@ export default function ListContent({
                                     <div>
                                         <h2 className="text-2xl font-bold text-gray-900">Share List</h2>
                                         <p className="text-sm text-gray-600 mt-1">
-                                            Choose how you want to share this list
+                                            Share this link with others to invite them
                                         </p>
                                     </div>
                                     <button
@@ -257,43 +219,22 @@ export default function ListContent({
                                     </button>
                                 </div>
 
-                                <div className="space-y-3">
-                                    <button
-                                        onClick={() => handleCopyLink(shareUrl)}
-                                        className="w-full bg-blue-600 text-white px-6 py-4 rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-start gap-3"
-                                    >
-                                        <span className="text-2xl">🔗</span>
-                                        <div className="flex-1 text-left">
-                                            <div className="font-bold">Share with Others</div>
-                                            <div className="text-sm opacity-90">
-                                                Invite link - others will join as themselves
-                                            </div>
-                                        </div>
-                                    </button>
-
-                                    {userIdentity && (
-                                        <button
-                                            onClick={() => handleCopyLink(personalLink || shareUrl)}
-                                            className="w-full bg-green-600 text-white px-6 py-4 rounded-lg font-semibold hover:bg-green-700 transition-colors flex items-start gap-3"
-                                        >
-                                            <span className="text-2xl">👤</span>
-                                            <div className="flex-1 text-left">
-                                                <div className="font-bold">Share with Me</div>
-                                                <div className="text-sm opacity-90">
-                                                    {personalLink
-                                                        ? 'Personal link - use on your other devices'
-                                                        : 'Get your personal link (refresh page after joining)'}
-                                                </div>
-                                            </div>
-                                        </button>
-                                    )}
+                                <div className="mb-4">
+                                    <input
+                                        type="text"
+                                        value={shareUrl}
+                                        readOnly
+                                        className="w-full px-3 py-3 bg-gray-50 border border-gray-300 rounded-lg text-sm font-mono text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        onClick={(e) => (e.target as HTMLInputElement).select()}
+                                    />
                                 </div>
 
-                                {showCopyNotification && (
-                                    <div className="mt-4 text-center text-sm text-green-600 font-medium">
-                                        ✓ Link copied to clipboard!
-                                    </div>
-                                )}
+                                <button
+                                    onClick={() => handleCopyLink(shareUrl)}
+                                    className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                                >
+                                    {showCopyNotification ? '✓ Link Copied!' : 'Copy Link'}
+                                </button>
                             </div>
                         </div>
                     </>
@@ -304,13 +245,36 @@ export default function ListContent({
                     <button onClick={() => router.push('/')} className="text-gray-600 hover:text-gray-900 text-sm">
                         ← Back to home
                     </button>
-                    <ListNavigator currentListId={list.id} lists={userLists} />
+                    <div className="flex items-center gap-3">
+                        <ListNavigator currentListId={list.id} lists={userLists} />
+                        <SignedOut>
+                            <SignInButton mode="modal">
+                                <button className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors">
+                                    Sign In
+                                </button>
+                            </SignInButton>
+                        </SignedOut>
+                        <SignedIn>
+                            <UserButton afterSignOutUrl="/" />
+                        </SignedIn>
+                    </div>
                 </div>
                 {/* Header */}
                 <div className="bg-white rounded-lg p-4 mb-6">
                     <div className="flex justify-between items-start gap-4">
                         <div className="flex-1">
                             <h1 className="text-3xl sm:text-4xl font-bold text-gray-900">{list.name}</h1>
+                            {userIdentity && (
+                                <div className="mt-2 flex items-center gap-2">
+                                    <span className="text-sm text-gray-600">Logged in as</span>
+                                    <span className="text-sm font-semibold text-gray-900">{userIdentity.displayName}</span>
+                                    {isOwner && (
+                                        <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded">
+                                            Owner
+                                        </span>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         {/* Menu Dropdown */}
@@ -415,62 +379,27 @@ export default function ListContent({
                     </div>
                 </div>
 
-                {/* Personal Link Banner */}
-                {showPersonalLinkBanner && personalLink && (
-                    <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4 mb-6">
-                        <div className="flex items-start gap-3">
-                            <span className="text-2xl flex-shrink-0">🎉</span>
-                            <div className="flex-1">
-                                <h3 className="font-bold text-green-900 mb-1">Welcome! Save your personal link</h3>
-                                <p className="text-sm text-green-800 mb-3">
-                                    Use your personal link to access this list from any device as yourself. Click below to
-                                    get your link!
-                                </p>
-                                <button
-                                    onClick={handleOpenShareModal}
-                                    className="w-full bg-green-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
-                                >
-                                    <span>🔗</span>
-                                    <span>Get My Link</span>
-                                </button>
-                            </div>
-                            <button
-                                onClick={() => setShowPersonalLinkBanner(false)}
-                                className="text-green-600 hover:text-green-800 text-xl font-bold flex-shrink-0"
-                            >
-                                ×
+                {/* Sign In or Joining Message */}
+                {!clerkUser && (
+                    <div className="bg-white rounded-lg p-6 mb-6 text-center">
+                        <h2 className="text-xl font-bold text-gray-900 mb-2">Sign in to join this list</h2>
+                        <p className="text-gray-600 mb-4">
+                            You need to be signed in to collaborate on this list
+                        </p>
+                        <SignInButton mode="modal">
+                            <button className="bg-blue-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors">
+                                Sign In to Join
                             </button>
-                        </div>
+                        </SignInButton>
                     </div>
                 )}
 
-                {/* Join Form */}
-                {showJoinForm && (
-                    <div className="bg-white rounded-lg p-6 mb-6">
-                        <h2 className="text-xl font-bold text-gray-900 mb-4">Join this list</h2>
-                        <form onSubmit={handleJoin} className="space-y-4">
-                            <div>
-                                <label htmlFor="displayName" className="block text-sm font-medium text-gray-700 mb-2">
-                                    Your display name
-                                </label>
-                                <input
-                                    type="text"
-                                    id="displayName"
-                                    value={displayName}
-                                    onChange={(e) => setDisplayName(e.target.value)}
-                                    placeholder="e.g., Dad, Mum, Alice"
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
-                                    required
-                                />
-                            </div>
-                            <button
-                                type="submit"
-                                disabled={isSubmitting}
-                                className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50"
-                            >
-                                {isSubmitting ? 'Joining...' : 'Join List'}
-                            </button>
-                        </form>
+                {clerkUser && !isMember && isJoining && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6 text-center">
+                        <div className="flex items-center justify-center gap-3">
+                            <div className="animate-spin h-5 w-5 border-2 border-blue-600 border-t-transparent rounded-full" />
+                            <p className="text-blue-900 font-medium">Joining list...</p>
+                        </div>
                     </div>
                 )}
 

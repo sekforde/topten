@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
+import { ClerkProvider } from '@clerk/nextjs'
 import './globals.css'
 
 const geistSans = Geist({
@@ -15,7 +16,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
     title: 'Family Top 10 - Collaborative Ranking Lists',
     description:
-        'Build and rank collaborative lists with your family or friends. No accounts, no fuss—just share a link and start voting!'
+        'Build and rank collaborative lists with your family or friends. Sign in to collaborate and track your votes!'
 }
 
 export const viewport: Viewport = {
@@ -30,8 +31,10 @@ export default function RootLayout({
     children: React.ReactNode
 }>) {
     return (
-        <html lang="en">
-            <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>{children}</body>
-        </html>
+        <ClerkProvider>
+            <html lang="en">
+                <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>{children}</body>
+            </html>
+        </ClerkProvider>
     )
 }

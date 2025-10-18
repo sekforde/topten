@@ -1,36 +1,25 @@
 'use server';
 
 import { nanoid } from 'nanoid';
+import { auth, currentUser } from '@clerk/nextjs/server';
 import { cookies } from 'next/headers';
-import { getList, saveList, addUserToList } from '@/lib/db';
-import type { TopTenList, User, Item, Rating, Criterion } from '@/types';
+import { getList, saveList, getAllListIds } from '@/lib/db';
+import type { TopTenList, User, Item, Rating, Criterion, UserIdentity } from '@/types';
 
-const COOKIE_PREFIX = 'topten_user_';
-
-// Helper to get user identity from cookie for a specific list
-async function getUserIdentity(listId: string): Promise<{ userId: string; displayName: string } | null> {
-  const cookieStore = await cookies();
-  const userCookie = cookieStore.get(`${COOKIE_PREFIX}${listId}`);
+// Helper to get current Clerk user
+async function getCurrentUserIdentity(): Promise<UserIdentity | null> {
+  const user = await currentUser();
   
-  if (userCookie) {
-    try {
-      return JSON.parse(userCookie.value);
-    } catch {
-      return null;
-    }
-  }
-  return null;
-}
-
-// Helper to set user identity cookie
-async function setUserIdentity(listId: string, userId: string, displayName: string): Promise<void> {
-  const cookieStore = await cookies();
-  cookieStore.set(`${COOKIE_PREFIX}${listId}`, JSON.stringify({ userId, displayName }), {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 365, // 1 year
-  });
+  if (!user) return null;
+  
+  return {
+    userId: user.id,
+    displayName: user.firstName && user.lastName 
+      ? `${user.firstName} ${user.lastName}` 
+      : user.username || user.emailAddresses[0]?.emailAddress || 'User',
+    email: user.emailAddresses[0]?.emailAddress,
+    imageUrl: user.imageUrl,
+  };
 }
 
 // Helper to get owner token from cookie
@@ -48,8 +37,18 @@ async function verifyOwner(listId: string, ownerToken: string): Promise<boolean>
 
 export async function createList(name: string, criteria: string[]): Promise<{ success: boolean; listId?: string; error?: string }> {
   try {
+    const { userId: clerkUserId } = await auth();
+    
+    if (!clerkUserId) {
+      return { success: false, error: 'You must be signed in to create a list' };
+    }
+
+    const userIdentity = await getCurrentUserIdentity();
+    if (!userIdentity) {
+      return { success: false, error: 'Could not get user information' };
+    }
+
     const listId = nanoid(12);
-    const ownerId = nanoid(12);
     const ownerToken = nanoid(32);
 
     const criteriaObjects: Criterion[] = criteria.map(name => ({
@@ -57,13 +56,22 @@ export async function createList(name: string, criteria: string[]): Promise<{ su
       name,
     }));
 
+    // Add creator as the first user
+    const creatorUser: User = {
+      id: clerkUserId,
+      displayName: userIdentity.displayName,
+      joinedAt: Date.now(),
+      email: userIdentity.email,
+      imageUrl: userIdentity.imageUrl,
+    };
+
     const newList: TopTenList = {
       id: listId,
       name,
       criteria: criteriaObjects,
       items: [],
-      users: [],
-      ownerId,
+      users: [creatorUser], // Add creator as first user
+      ownerId: clerkUserId, // Use Clerk user ID as owner
       ownerToken,
       createdAt: Date.now(),
       isLocked: false,
@@ -87,91 +95,72 @@ export async function createList(name: string, criteria: string[]): Promise<{ su
   }
 }
 
-export async function joinList(listId: string, displayName: string): Promise<{ success: boolean; userId?: string; userToken?: string; error?: string }> {
+export async function joinList(listId: string): Promise<{ success: boolean; userId?: string; error?: string }> {
   try {
+    const { userId: clerkUserId } = await auth();
+    
+    if (!clerkUserId) {
+      return { success: false, error: 'You must be signed in to join a list' };
+    }
+
     const list = await getList(listId);
     if (!list) {
       return { success: false, error: 'List not found' };
     }
 
-    // Check if user already has identity for this list
-    const existingIdentity = await getUserIdentity(listId);
-    if (existingIdentity) {
-      // Find the user's token from the list
-      const user = list.users.find(u => u.id === existingIdentity.userId);
-      
-      // Migrate old users who don't have tokens
-      if (user && !user.userToken) {
-        user.userToken = nanoid(32);
-        await saveList(list);
-      }
-      
-      return { success: true, userId: existingIdentity.userId, userToken: user?.userToken };
+    const userIdentity = await getCurrentUserIdentity();
+    if (!userIdentity) {
+      return { success: false, error: 'Could not get user information' };
     }
 
-    const userId = nanoid(12);
-    const userToken = nanoid(32);
+    // Check if user already in this list
+    const existingUser = list.users.find(u => u.id === clerkUserId);
+    if (existingUser) {
+      return { success: true, userId: clerkUserId };
+    }
+
+    // Add user to list
     const newUser: User = {
-      id: userId,
-      displayName,
+      id: clerkUserId,
+      displayName: userIdentity.displayName,
       joinedAt: Date.now(),
-      userToken,
+      email: userIdentity.email,
+      imageUrl: userIdentity.imageUrl,
     };
 
     list.users.push(newUser);
     await saveList(list);
-    await setUserIdentity(listId, userId, displayName);
 
-    // Track this list for the user
-    await addUserToList(userId, listId);
-
-    return { success: true, userId, userToken };
+    return { success: true, userId: clerkUserId };
   } catch (error) {
     console.error('Error joining list:', error);
     return { success: false, error: 'Failed to join list' };
   }
 }
 
-// Authenticate user via their unique token
-export async function authenticateUserByToken(listId: string, userToken: string): Promise<{ success: boolean; userId?: string; displayName?: string; error?: string }> {
-  try {
-    const list = await getList(listId);
-    if (!list) {
-      return { success: false, error: 'List not found' };
-    }
-
-    // Find user by token
-    const user = list.users.find(u => u.userToken === userToken);
-    if (!user) {
-      return { success: false, error: 'Invalid user token' };
-    }
-
-    // Set cookie for this device
-    await setUserIdentity(listId, user.id, user.displayName);
-
-    return { success: true, userId: user.id, displayName: user.displayName };
-  } catch (error) {
-    console.error('Error authenticating user:', error);
-    return { success: false, error: 'Failed to authenticate' };
-  }
-}
-
 export async function addItem(listId: string, itemName: string): Promise<{ success: boolean; itemId?: string; error?: string }> {
   try {
+    const { userId: clerkUserId } = await auth();
+    
+    if (!clerkUserId) {
+      return { success: false, error: 'You must be signed in to add items' };
+    }
+
     const list = await getList(listId);
     if (!list) {
       return { success: false, error: 'List not found' };
     }
 
-    const userIdentity = await getUserIdentity(listId);
-    if (!userIdentity) {
-      return { success: false, error: 'User not found. Please join the list first.' };
+    // Check if user is a member of this list
+    const isMember = list.users.some(u => u.id === clerkUserId);
+    if (!isMember) {
+      return { success: false, error: 'Please join the list first.' };
     }
 
     const newItem: Item = {
       id: nanoid(12),
       name: itemName,
-      addedBy: userIdentity.userId,
+      addedBy: clerkUserId,
       addedAt: Date.now(),
       ratings: [],
     };
@@ -188,14 +177,21 @@ export async function addItem(listId: string, itemName: string): Promise<{ succe
 
 export async function rateItem(listId: string, itemId: string, criterionId: string, value: number): Promise<{ success: boolean; error?: string }> {
   try {
+    const { userId: clerkUserId } = await auth();
+    
+    if (!clerkUserId) {
+      return { success: false, error: 'You must be signed in to rate items' };
+    }
+
     const list = await getList(listId);
     if (!list) {
       return { success: false, error: 'List not found' };
     }
 
-    const userIdentity = await getUserIdentity(listId);
-    if (!userIdentity) {
-      return { success: false, error: 'User not found. Please join the list first.' };
+    // Check if user is a member of this list
+    const isMember = list.users.some(u => u.id === clerkUserId);
+    if (!isMember) {
+      return { success: false, error: 'Please join the list first.' };
     }
 
     const item = list.items.find(i => i.id === itemId);
@@ -205,12 +201,12 @@ export async function rateItem(listId: string, itemId: string, criterionId: stri
 
     // Remove existing rating for this user/criterion if exists
     item.ratings = item.ratings.filter(
-      r => !(r.userId === userIdentity.userId && r.criterionId === criterionId)
+      r => !(r.userId === clerkUserId && r.criterionId === criterionId)
     );
 
     // Add new rating
     const newRating: Rating = {
-      userId: userIdentity.userId,
+      userId: clerkUserId,
       criterionId,
       value,
     };
@@ -269,40 +265,40 @@ export async function toggleLockList(listId: string, ownerToken: string): Promis
 
 export async function getListWithUserContext(listId: string): Promise<{ 
   list: TopTenList | null; 
-  userIdentity: { userId: string; displayName: string } | null; 
+  userIdentity: UserIdentity | null; 
   isOwner: boolean;
 }> {
   const list = await getList(listId);
-  const userIdentity = await getUserIdentity(listId);
+  const userIdentity = await getCurrentUserIdentity();
   const ownerToken = await getOwnerToken(listId);
   const isOwner = list ? (ownerToken === list.ownerToken) : false;
-
-  // Migrate old users who don't have tokens
-  if (list && userIdentity) {
-    const user = list.users.find(u => u.id === userIdentity.userId);
-    if (user && !user.userToken) {
-      user.userToken = nanoid(32);
-      await saveList(list);
-    }
-  }
 
   return { list, userIdentity, isOwner };
 }
 
 export async function getUserListIds(): Promise<string[]> {
-  const cookieStore = await cookies();
-  const allCookies = cookieStore.getAll();
+  const { userId } = await auth();
   
-  const listIds: string[] = [];
+  if (!userId) return [];
   
-  for (const cookie of allCookies) {
-    if (cookie.name.startsWith(COOKIE_PREFIX)) {
-      const listId = cookie.name.replace(COOKIE_PREFIX, '');
-      listIds.push(listId);
+  // Get all list IDs and filter to ones where user is a member or owner
+  const allListIds = await getAllListIds();
+  const userListIds: string[] = [];
+  
+  for (const listId of allListIds) {
+    const list = await getList(listId);
+    if (list) {
+      // Check if user is a member or owner
+      const isMember = list.users.some(u => u.id === userId);
+      const isOwner = list.ownerId === userId;
+      
+      if (isMember || isOwner) {
+        userListIds.push(listId);
+      }
     }
   }
   
-  return listIds;
+  return userListIds;
 }
 
 export async function getUserListsSummary(): Promise<Array<{

@@ -20,10 +20,11 @@ export interface Item {
 }
 
 export interface User {
-  id: string;
+  id: string; // Clerk user ID
   displayName: string;
   joinedAt: number;
-  userToken: string; // Secret token for cross-device authentication
+  email?: string; // Optional: from Clerk profile
+  imageUrl?: string; // Optional: from Clerk profile
 }
 
 export interface TopTenList {
@@ -38,11 +39,12 @@ export interface TopTenList {
   isLocked: boolean;
 }
 
-// Client-side user identity stored in cookie
+// User identity from Clerk
 export interface UserIdentity {
-  listId: string;
-  userId: string;
+  userId: string; // Clerk user ID
   displayName: string;
+  email?: string;
+  imageUrl?: string;
 }
 
 // Computed ranking information
