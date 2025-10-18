@@ -32,7 +32,7 @@ export function StarRating({ value = -1, onChange, readonly = false, showNoExper
                 <button
                     type="button"
                     onClick={handleNoExperience}
-                    className={`text-sm px-3 py-1 rounded-md transition-colors ${
+                    className={`text-xs sm:text-sm px-2 sm:px-3 py-1 rounded-md transition-colors ${
                         value === -1 ? 'bg-gray-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                     }`}
                 >

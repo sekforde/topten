@@ -23,6 +23,7 @@ export interface User {
   id: string;
   displayName: string;
   joinedAt: number;
+  userToken: string; // Secret token for cross-device authentication
 }
 
 export interface TopTenList {

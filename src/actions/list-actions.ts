@@ -87,7 +87,7 @@ export async function createList(name: string, criteria: string[]): Promise<{ su
   }
 }
 
-export async function joinList(listId: string, displayName: string): Promise<{ success: boolean; userId?: string; error?: string }> {
+export async function joinList(listId: string, displayName: string): Promise<{ success: boolean; userId?: string; userToken?: string; error?: string }> {
   try {
     const list = await getList(listId);
     if (!list) {
@@ -97,14 +97,25 @@ export async function joinList(listId: string, displayName: string): Promise<{ s
     // Check if user already has identity for this list
     const existingIdentity = await getUserIdentity(listId);
     if (existingIdentity) {
-      return { success: true, userId: existingIdentity.userId };
+      // Find the user's token from the list
+      const user = list.users.find(u => u.id === existingIdentity.userId);
+      
+      // Migrate old users who don't have tokens
+      if (user && !user.userToken) {
+        user.userToken = nanoid(32);
+        await saveList(list);
+      }
+      
+      return { success: true, userId: existingIdentity.userId, userToken: user?.userToken };
     }
 
     const userId = nanoid(12);
+    const userToken = nanoid(32);
     const newUser: User = {
       id: userId,
       displayName,
       joinedAt: Date.now(),
+      userToken,
     };
 
     list.users.push(newUser);
@@ -114,10 +125,34 @@ export async function joinList(listId: string, displayName: string): Promise<{ s
     // Track this list for the user
     await addUserToList(userId, listId);
 
-    return { success: true, userId };
+    return { success: true, userId, userToken };
   } catch (error) {
     console.error('Error joining list:', error);
     return { success: false, error: 'Failed to join list' };
+  }
+}
+
+// Authenticate user via their unique token
+export async function authenticateUserByToken(listId: string, userToken: string): Promise<{ success: boolean; userId?: string; displayName?: string; error?: string }> {
+  try {
+    const list = await getList(listId);
+    if (!list) {
+      return { success: false, error: 'List not found' };
+    }
+
+    // Find user by token
+    const user = list.users.find(u => u.userToken === userToken);
+    if (!user) {
+      return { success: false, error: 'Invalid user token' };
+    }
+
+    // Set cookie for this device
+    await setUserIdentity(listId, user.id, user.displayName);
+
+    return { success: true, userId: user.id, displayName: user.displayName };
+  } catch (error) {
+    console.error('Error authenticating user:', error);
+    return { success: false, error: 'Failed to authenticate' };
   }
 }
 
@@ -241,6 +276,15 @@ export async function getListWithUserContext(listId: string): Promise<{
   const userIdentity = await getUserIdentity(listId);
   const ownerToken = await getOwnerToken(listId);
   const isOwner = list ? (ownerToken === list.ownerToken) : false;
+
+  // Migrate old users who don't have tokens
+  if (list && userIdentity) {
+    const user = list.users.find(u => u.id === userIdentity.userId);
+    if (user && !user.userToken) {
+      user.userToken = nanoid(32);
+      await saveList(list);
+    }
+  }
 
   return { list, userIdentity, isOwner };
 }
