@@ -54,6 +54,8 @@ export default function ListContent({
     const [isItemsExpanded, setIsItemsExpanded] = useState(true)
     const [showShareModal, setShowShareModal] = useState(false)
     const [isJoining, setIsJoining] = useState(false)
+    const [sortedOrder, setSortedOrder] = useState<string[]>([])
+    const [needsResort, setNeedsResort] = useState(false)
 
     // Sync local state with server data when it updates
     useEffect(() => {
@@ -113,7 +115,15 @@ export default function ListContent({
         if (!userIdentity) return
 
         await rateItem(list.id, itemId, criterionId, value)
+        setNeedsResort(true) // Mark that we need to resort
         router.refresh()
+    }
+
+    function handleResort() {
+        const itemsWithScores = list.items.map((item) => calculateItemScore(item))
+        const sorted = sortItemsByScore(itemsWithScores)
+        setSortedOrder(sorted.map((item) => item.item.id))
+        setNeedsResort(false)
     }
 
     async function handleRemoveItem(itemId: string) {
@@ -185,9 +195,24 @@ export default function ListContent({
         router.refresh()
     }
 
-    // Calculate scores and sort items
+    // Calculate scores
     const itemsWithScores = list.items.map((item) => calculateItemScore(item))
-    const sortedItems = sortItemsByScore(itemsWithScores)
+    
+    // Initialize sorted order on first load or when items change
+    useEffect(() => {
+        if (sortedOrder.length === 0 && list.items.length > 0) {
+            const initialItemsWithScores = list.items.map((item) => calculateItemScore(item))
+            const initialSorted = sortItemsByScore(initialItemsWithScores)
+            setSortedOrder(initialSorted.map((item) => item.item.id))
+        }
+    }, [sortedOrder.length, list.items])
+    
+    // Sort items - use saved order if available, otherwise sort by score
+    const sortedItems = sortedOrder.length > 0
+        ? sortedOrder
+              .map((id) => itemsWithScores.find((item) => item.item.id === id))
+              .filter((item): item is NonNullable<typeof item> => item !== undefined)
+        : sortItemsByScore(itemsWithScores)
 
     // Calculate participation
     const totalUsers = list.users.length
@@ -459,15 +484,26 @@ export default function ListContent({
                     </div>
                 )}
 
-                {/* Expand All Button */}
+                {/* Control Buttons */}
                 {sortedItems.length > 0 && (
-                    <div className="mb-6">
+                    <div className="mb-6 flex gap-3">
                         <button
                             onClick={() => setIsItemsExpanded(!isItemsExpanded)}
-                            className="w-full bg-gray-100 text-gray-700 px-6 py-3 rounded-lg font-medium hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
+                            className="flex-1 bg-gray-100 text-gray-700 px-6 py-3 rounded-lg font-medium hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
                         >
                             <span>{isItemsExpanded ? '▼' : '▶'}</span>
                             <span>{isItemsExpanded ? 'Collapse All' : 'Expand All'}</span>
+                        </button>
+                        <button
+                            onClick={handleResort}
+                            className={`flex-1 px-6 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 ${
+                                needsResort
+                                    ? 'bg-blue-600 text-white hover:bg-blue-700 animate-pulse'
+                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                        >
+                            <span>↕️</span>
+                            <span>{needsResort ? 'Re-sort Items' : 'Sort Items'}</span>
                         </button>
                     </div>
                 )}
