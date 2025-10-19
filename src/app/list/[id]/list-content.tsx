@@ -120,7 +120,7 @@ export default function ListContent({
     }
 
     function handleResort() {
-        const itemsWithScores = list.items.map((item) => calculateItemScore(item))
+        const itemsWithScores = list.items.map((item) => calculateItemScore(item, list.criteria.length))
         const sorted = sortItemsByScore(itemsWithScores)
         setSortedOrder(sorted.map((item) => item.item.id))
         setNeedsResort(false)
@@ -195,17 +195,17 @@ export default function ListContent({
         router.refresh()
     }
 
-    // Calculate scores
-    const itemsWithScores = list.items.map((item) => calculateItemScore(item))
+    // Calculate scores with weighted formula
+    const itemsWithScores = list.items.map((item) => calculateItemScore(item, list.criteria.length))
     
     // Initialize sorted order on first load or when items change
     useEffect(() => {
         if (sortedOrder.length === 0 && list.items.length > 0) {
-            const initialItemsWithScores = list.items.map((item) => calculateItemScore(item))
+            const initialItemsWithScores = list.items.map((item) => calculateItemScore(item, list.criteria.length))
             const initialSorted = sortItemsByScore(initialItemsWithScores)
             setSortedOrder(initialSorted.map((item) => item.item.id))
         }
-    }, [sortedOrder.length, list.items])
+    }, [sortedOrder.length, list.items, list.criteria.length])
     
     // Sort items - use saved order if available, otherwise sort by score
     const sortedItems = sortedOrder.length > 0

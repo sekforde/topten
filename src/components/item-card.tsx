@@ -26,7 +26,7 @@ export function ItemCard({
     onRate,
     onRemove
 }: ItemCardProps) {
-    const scoreData = calculateItemScore(item)
+    const scoreData = calculateItemScore(item, criteria.length)
     const [showMenu, setShowMenu] = useState(false)
 
     return (
